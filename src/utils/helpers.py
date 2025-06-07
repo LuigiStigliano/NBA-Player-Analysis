@@ -23,7 +23,7 @@ def save_dataframe(df: DataFrame, path: str, file_format: str = "parquet"):
     print(f"Salvataggio del DataFrame in '{path}' (formato: {file_format})...")
     
     output_dir = os.path.dirname(path)
-    if not os.path.exists(output_dir) and file_format != "parquet":
+    if not os.path.exists(output_dir):
          os.makedirs(output_dir)
 
     if file_format == "parquet":
