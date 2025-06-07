@@ -84,6 +84,9 @@ def run_pipeline():
     kmeans_model = train_kmeans_model(df_prepared, k=optimal_k)
     df_clustered = assign_clusters(kmeans_model, df_prepared)
 
+    # Aggiorna la numerazione dei cluster da 0-5 a 1-6
+    df_clustered = df_clustered.withColumn("cluster_id", col("cluster_id") + 1)
+
     # --- Fase 4: Valutazione e Analisi ---
     print("\nFase 4: Valutazione e Analisi dei Risultati...")
     generate_cluster_summary(df_clustered, df_for_clustering_input, optimal_k, reports_dir)
