@@ -6,6 +6,7 @@ numpy==2.2.6
 # Visualizzazione per i Notebooks
 matplotlib==3.10.3
 seaborn==0.13.2
+scikit-learn==1.7.0
 
 # API per il download dei dati
 kaggle==1.7.4.5
