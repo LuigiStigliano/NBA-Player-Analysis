@@ -10,7 +10,7 @@ from data_ingestion.download_data import download_nba_dataset
 from data_processing.cleaning import standardize_column_names, correct_data_types, handle_missing_values
 from data_processing.normalization import per_36_minutes_stats, add_per_game_metrics
 from feature_engineering.advanced_metrics import calculate_true_shooting_percentage
-from clustering.models import prepare_features_for_clustering, train_kmeans_model, assign_clusters, evaluate_clustering, get_cluster_profiles, determine_optimal_k
+from clustering.models import prepare_features_for_clustering, train_kmeans_model, assign_clusters, evaluate_clustering, get_cluster_profiles
 from reporting.summary import generate_cluster_summary
 
 def run_pipeline():
