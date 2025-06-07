@@ -15,7 +15,7 @@ def standardize_column_names(df: DataFrame) -> DataFrame:
 def correct_data_types(df: DataFrame) -> DataFrame:
     """
     Converte le colonne numeriche al tipo di dato corretto (Double) usando un cast sicuro.
-    I valori non numerici vengono convertiti in 0.0.
+    I valori non numerici (incluso 'NA') vengono convertiti in 0.0.
     """
     print("Correzione dei tipi di dato per le colonne numeriche...")
     numeric_cols = [
@@ -29,12 +29,14 @@ def correct_data_types(df: DataFrame) -> DataFrame:
     df_casted = df
     for col_name in numeric_cols:
         if col_name in df_casted.columns:
-            # Cast sicuro: se il cast a double fallisce (restituendo null), imposta il valore a 0.0
+            # Cast sicuro: se il valore è 'NA' o non può essere convertito in double, imposta a 0.0
+            # Altrimenti, esegui il cast a double.
             df_casted = df_casted.withColumn(
                 col_name,
-                when(col(col_name).cast("double").isNotNull(), col(col_name).cast("double"))
-                .otherwise(0.0)
-            )
+                when(col(col_name) == 'NA', 0.0)
+                .otherwise(col(col_name).cast("double"))
+            ).na.fill(0.0, subset=[col_name]) # Aggiunto na.fill per gestire eventuali nulli post-cast
+
     return df_casted
 
 def handle_missing_values(df: DataFrame, min_games_threshold: int) -> DataFrame:
