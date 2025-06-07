@@ -52,14 +52,13 @@ def save_dataframe(df: DataFrame, path: str, file_format: str = "parquet"):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # Converte in Pandas e salva. ATTENZIONE: può causare errori di memoria
-    # con dataset di grandi dimensioni.
-    pandas_df = df.toPandas()
-    
+    # Salva direttamente usando le API native di Spark, che operano in modo distribuito.
+    # Spark creerà una cartella al percorso specificato contenente i file di dati partizionati.
     if file_format == "parquet":
-        pandas_df.to_parquet(path, index=False)
+        df.write.mode("overwrite").parquet(path)
     elif file_format == "csv":
-        pandas_df.to_csv(path, index=False)
+        # Per il CSV, è buona norma specificare l'header
+        df.write.mode("overwrite").option("header", "true").csv(path)
     else:
         raise ValueError(f"Formato file '{file_format}' non supportato.")
 
