@@ -1,138 +1,160 @@
 """
-Script principale per l'esecuzione della pipeline di analisi dei giocatori NBA.
+Funzioni per l'addestramento e la valutazione di modelli di clustering.
 
-Questo script orchestra l'intero processo:
-1.  **Ingestione e Pulizia**: Scarica il dataset da Kaggle (se non presente),
-    lo carica, standardizza i nomi delle colonne, corregge i tipi di dato e gestisce
-    i valori mancanti.
-2.  **Feature Engineering e Normalizzazione**: Calcola le statistiche
-    normalizzate (per 36 minuti) e metriche avanzate come il True Shooting Percentage.
-3.  **Clustering**: Determina il numero ottimale di cluster (k) e poi applica
-    l'algoritmo K-Means per raggruppare i giocatori in base allo stile di gioco,
-    utilizzando i dati della loro stagione più recente.
-4.  **Valutazione e Salvataggio**: Valuta la qualità dei cluster tramite il
-    punteggio Silhouette e salva i risultati finali in formato Parquet.
+Questo modulo contiene le funzioni necessarie per eseguire il clustering K-Means
+sui dati dei giocatori NBA, utilizzando la libreria MLlib di PySpark.
+Le operazioni includono:
+- Preparazione e scaling delle feature.
+- Addestramento del modello K-Means.
+- Assegnazione dei cluster ai giocatori.
+- Valutazione della qualità del clustering.
+- Calcolo dei profili medi per l'interpretazione dei cluster.
 """
-import os
-from pyspark.sql.functions import col, max
-from utils.helpers import get_spark_session, save_dataframe
-from data_ingestion.download_data import download_nba_dataset
-from data_processing.cleaning import standardize_column_names, correct_data_types, handle_missing_values
-from data_processing.normalization import per_36_minutes_stats
-from feature_engineering.advanced_metrics import calculate_true_shooting_percentage
-from clustering.models import prepare_features_for_clustering, train_kmeans_model, assign_clusters, evaluate_clustering, get_cluster_profiles, determine_optimal_k
+from pyspark.ml.feature import VectorAssembler, StandardScaler
+from pyspark.ml.clustering import KMeans, KMeansModel
+from pyspark.ml.evaluation import ClusteringEvaluator
+from pyspark.sql import DataFrame
+from pyspark.sql.functions import col, avg, count
 
-def run_pipeline():
+def prepare_features_for_clustering(df: DataFrame, feature_cols: list, output_col: str = "features_scaled") -> DataFrame:
     """
-    Esegue l'intera pipeline di analisi dei dati dei giocatori NBA.
+    Assembla e scala le feature per il modello di clustering.
+
+    L'assemblaggio combina le colonne delle feature in un unico vettore.
+    Lo scaling (StandardScaler) normalizza ogni feature per avere media 0 e
+    deviazione standard 1, garantendo che nessuna feature domini le altre
+    a causa della sua scala.
+
+    Args:
+        df (DataFrame): Il DataFrame di input contenente i dati dei giocatori.
+        feature_cols (list): La lista dei nomi delle colonne da usare come feature.
+        output_col (str): Il nome della colonna di output per le feature scalate.
+
+    Returns:
+        DataFrame: Il DataFrame con una colonna vettoriale di feature scalate.
     """
-    spark = get_spark_session(app_name="NBAPipeline")
+    print(f"Preparazione features per clustering dalle colonne: {feature_cols}")
 
-    # --- Configurazione dei Percorsi ---
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    raw_data_dir = os.path.join(base_dir, "data", "raw")
-    processed_data_path = os.path.join(base_dir, "data", "processed")
-
-    correct_csv_name = "Player Totals.csv"
-    raw_data_path = os.path.join(raw_data_dir, correct_csv_name)
-    final_output_path = os.path.join(processed_data_path, "player_clusters.parquet")
-
-    # --- Fase 0: Download del Dataset (se necessario) ---
-    if not os.path.exists(raw_data_path):
-        try:
-            print(f"Dataset non trovato. Avvio del download in '{raw_data_dir}'...")
-            download_nba_dataset(raw_data_dir)
-        except Exception as e:
-            print(f"Pipeline interrotta: errore durante il download del dataset. {e}")
-            spark.stop()
-            return
-    else:
-        print(f"Dataset già presente in '{raw_data_path}'. Salto il download.")
-
-    # --- Fase 1: Ingestione e Pulizia Dati ---
-    print("\nFase 1: Caricamento, Pulizia e Preparazione Dati...")
-    try:
-        raw_df = spark.read.csv(raw_data_path, header=True, inferSchema=True)
-        print(f"Dataset caricato con {raw_df.count()} righe.")
-    except Exception as e:
-        print(f"Errore critico nel caricamento del dataset da '{raw_data_path}': {e}")
-        spark.stop()
-        return
-
-    df_std_names = standardize_column_names(raw_df)
-    df_typed = correct_data_types(df_std_names)
-    df_cleaned = handle_missing_values(df_typed)
-    print(f"Dati dopo pulizia e filtraggio: {df_cleaned.count()} righe.")
-
-    # --- Fase 2: Normalizzazione e Feature Engineering ---
-    print("\nFase 2: Normalizzazione Statistiche e Calcolo Metriche Avanzate...")
+    # Assembla le feature in un unico vettore denso
+    assembler = VectorAssembler(inputCols=feature_cols, outputCol="features_raw", handleInvalid="skip")
+    df_assembled = assembler.transform(df)
     
-    stats_to_normalize = ['pts', 'trb', 'ast', 'stl', 'blk', 'tov', 'fga', 'fta']
-    df_normalized = per_36_minutes_stats(df_cleaned, stats_to_normalize, minutes_played_col="mp")
+    # Scala le feature per normalizzarle
+    scaler = StandardScaler(inputCol="features_raw", outputCol=output_col,
+                            withStd=True, withMean=True)
+    scaler_model = scaler.fit(df_assembled)
+    df_scaled = scaler_model.transform(df_assembled)
 
-    df_advanced = calculate_true_shooting_percentage(df_normalized, points_col="pts", fga_col="fga", fta_col="fta")
+    return df_scaled
+
+def train_kmeans_model(df_features: DataFrame, k: int, features_col: str = "features_scaled", seed: int = 42) -> KMeansModel:
+    """
+    Addestra un modello di clustering K-Means.
+
+    Args:
+        df_features (DataFrame): DataFrame con la colonna delle feature preparata.
+        k (int): Il numero di cluster (gruppi) da creare.
+        features_col (str): Il nome della colonna contenente le feature scalate.
+        seed (int): Un seme per la riproducibilità dei risultati.
+
+    Returns:
+        KMeansModel: Il modello K-Means addestrato.
+    """
+    print(f"Addestramento del modello K-Means con k={k}...")
+    kmeans = KMeans(featuresCol=features_col, k=k, seed=seed, predictionCol="cluster_id")
+    model = kmeans.fit(df_features)
+    return model
+
+def assign_clusters(model: KMeansModel, df_features: DataFrame) -> DataFrame:
+    """
+    Assegna i giocatori ai cluster utilizzando un modello K-Means addestrato.
+
+    Args:
+        model (KMeansModel): Il modello K-Means addestrato.
+        df_features (DataFrame): Il DataFrame con la colonna delle feature preparata.
+
+    Returns:
+        DataFrame: Il DataFrame originale con una colonna 'cluster_id' aggiunta.
+    """
+    print("Assegnazione dei giocatori ai cluster...")
+    predictions = model.transform(df_features)
+    return predictions
+
+def evaluate_clustering(predictions: DataFrame, features_col: str = "features_scaled", prediction_col: str = "cluster_id") -> float:
+    """
+    Valuta la qualità del clustering usando il Silhouette Score.
+
+    Il Silhouette Score misura quanto un oggetto sia simile al proprio cluster
+    rispetto agli altri cluster. Un valore vicino a 1 indica un buon clustering.
+
+    Args:
+        predictions (DataFrame): Il DataFrame con le predizioni del cluster.
+        features_col (str): Il nome della colonna delle feature.
+        prediction_col (str): Il nome della colonna con l'ID del cluster predetto.
+
+    Returns:
+        float: Il punteggio Silhouette.
+    """
+    print("Valutazione del clustering (Silhouette Score)...")
+    evaluator = ClusteringEvaluator(featuresCol=features_col, predictionCol=prediction_col, metricName="silhouette")
+    silhouette_score = evaluator.evaluate(predictions)
+    return silhouette_score
+
+def get_cluster_profiles(predictions: DataFrame, feature_cols: list) -> DataFrame:
+    """
+    Calcola le statistiche medie delle feature per ogni cluster.
+
+    Questo è un passo cruciale per l'interpretazione: analizzando i valori medi
+    di ogni feature, possiamo definire il "profilo" o lo "stile di gioco"
+    tipico di ogni cluster.
+
+    Args:
+        predictions (DataFrame): DataFrame con le assegnazioni dei cluster.
+        feature_cols (list): La lista originale dei nomi delle feature.
+
+    Returns:
+        DataFrame: Un DataFrame Spark con le medie per cluster e il conteggio
+                   dei giocatori in ciascuno.
+    """
+    print("Calcolo dei profili medi per l'interpretazione dei cluster...")
+    agg_expressions = [avg(c).alias(f"avg_{c}") for c in feature_cols]
+    agg_expressions.append(count("*").alias("num_players"))
+
+    cluster_profiles = predictions.groupBy("cluster_id").agg(*agg_expressions).orderBy("cluster_id")
+    return cluster_profiles
+
+def determine_optimal_k(df_features: DataFrame, k_range: range = range(2, 11), features_col: str = "features_scaled") -> int:
+    """
+    Determina il k ottimale usando il Silhouette Score.
+
+    Itera su un intervallo di valori di k, calcola il Silhouette Score per ciascuno
+    e restituisce il k che ha ottenuto il punteggio più alto.
+
+    Args:
+        df_features (DataFrame): DataFrame con la colonna delle feature preparata.
+        k_range (range): L'intervallo di valori k da testare (default: da 2 a 10).
+        features_col (str): Il nome della colonna delle feature.
+
+    Returns:
+        int: Il valore di k che massimizza il Silhouette Score.
+    """
+    print(f"Avvio della determinazione del k ottimale nell'intervallo {list(k_range)}...")
+    silhouette_scores = []
     
-    print("Statistiche normalizzate e metriche avanzate calcolate.")
-    df_advanced.select("player", "season", "pts_per_36_min", "ast_per_36_min", "ts_pct_calc").show(5)
+    for k in k_range:
+        print(f"  -> Valutazione per k={k}...")
+        kmeans = KMeans(featuresCol=features_col, k=k, seed=42, predictionCol="cluster_id")
+        model = kmeans.fit(df_features)
+        
+        predictions = model.transform(df_features)
+        evaluator = ClusteringEvaluator(featuresCol=features_col, predictionCol="cluster_id", metricName="silhouette")
+        silhouette = evaluator.evaluate(predictions)
+        silhouette_scores.append(silhouette)
+        print(f"     Silhouette Score: {silhouette:.4f}")
 
-    # --- Fase 3: Clustering dei Giocatori ---
-    print("\nFase 3: Raggruppamento dei Giocatori (Clustering)...")
+    # Sceglie il k che massimizza il Silhouette Score
+    max_score = max(silhouette_scores)
+    optimal_k = k_range[silhouette_scores.index(max_score)]
+    print(f"\nValore ottimale di k determinato: {optimal_k} (Silhouette Score più alto: {max_score:.4f})")
     
-    df_latest_season = df_advanced.groupBy("player").agg(max(col("season")).alias("latest_year"))
-
-    df_advanced_aliased = df_advanced.alias("adv")
-    df_latest_season_aliased = df_latest_season.alias("latest")
-
-    df_for_clustering_input = df_advanced_aliased.join(
-        df_latest_season_aliased,
-        (col("adv.player") == col("latest.player")) & (col("adv.season") == col("latest.latest_year")),
-        "inner"
-    ).select("adv.*")
-
-    feature_cols = [
-        'pts_per_36_min', 'trb_per_36_min', 'ast_per_36_min', 
-        'stl_per_36_min', 'blk_per_36_min', 'tov_per_36_min',
-        'ts_pct_calc'
-    ]
-    
-    df_for_clustering = df_for_clustering_input.select(["player", "season"] + feature_cols).na.drop()
-    
-    if df_for_clustering.count() == 0:
-        print("Nessun dato valido per il clustering dopo il filtraggio. Pipeline interrotta.")
-        spark.stop()
-        return
-
-    print(f"Dati pronti per il clustering: {df_for_clustering.count()} giocatori.")
-    df_prepared = prepare_features_for_clustering(df_for_clustering, feature_cols)
-
-    # Determina k dinamicamente invece di usare un valore hardcoded
-    optimal_k = determine_optimal_k(df_prepared)
-    
-    # Addestramento del modello K-Means con il k ottimale
-    kmeans_model = train_kmeans_model(df_prepared, k=optimal_k)
-    df_clustered = assign_clusters(kmeans_model, df_prepared)
-    
-    print("Primi 10 giocatori con cluster assegnato:")
-    df_clustered.select("player", "season", "cluster_id").show(10)
-
-    # --- Fase 4: Valutazione e Analisi dei Cluster ---
-    print("\nFase 4: Valutazione e Analisi dei Risultati...")
-    silhouette_score = evaluate_clustering(df_clustered)
-    print(f"Punteggio di validità del clustering finale (Silhouette Score): {silhouette_score:.3f}")
-
-    cluster_profiles = get_cluster_profiles(df_clustered, feature_cols)
-    print("Profili medi (caratteristiche) di ciascun cluster:")
-    cluster_profiles.show(truncate=False)
-
-    # --- Fase 5: Salvataggio Risultati ---
-    print(f"\nFase 5: Salvataggio dei risultati finali in '{final_output_path}'...")
-
-    columns_to_save = ["player", "season"] + feature_cols + ["cluster_id"]
-    df_to_save = df_clustered.select(columns_to_save)
-
-    save_dataframe(df_to_save, final_output_path)
-    print("\nPipeline completata con successo.")
-    spark.stop()
-
-if __name__ == "__main__":
-    run_pipeline()
+    return optimal_k
