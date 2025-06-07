@@ -1,15 +1,15 @@
 # Core per PySpark e Data Handling
-pyspark==3.5.0
-pandas==2.2.0
-numpy==1.24.3
+pyspark==4.0.0
+pandas==2.3.0
+numpy==2.2.6
 
 # Visualizzazione (per i notebook)
-matplotlib==3.7.1
-seaborn==0.12.2
+matplotlib==3.10.3
+seaborn==0.13.2
 
 # API per il download dei dati
-kaggle==1.7.4
+kaggle==1.7.4.5
 
-# Dipendenze per Jupyter Notebooks (opzionale se si usa solo lo script)
-jupyterlab
-ipykernel
+# Dipendenze per Jupyter Notebooks
+jupyterlab==4.4.2
+ipykernel==6.29.5
