@@ -2,8 +2,8 @@
 Script principale per l'esecuzione della pipeline di analisi dei giocatori NBA.
 """
 import os
-from pyspark.sql.functions import col, max
-# MODIFICA: Importazione della configurazione
+from pyspark.sql.functions import col, max, row_number, lit, when
+from pyspark.sql.window import Window
 from config.spark_config import SPARK_CONFIG
 from utils.helpers import get_spark_session, save_dataframe
 from data_ingestion.download_data import download_nba_dataset
@@ -17,7 +17,6 @@ def run_pipeline():
     """
     Esegue l'intera pipeline di analisi dei dati dei giocatori NBA.
     """
-    # MODIFICA: Uso della configurazione per inizializzare Spark
     spark = get_spark_session(
         app_name="NBAPipeline",
         driver_memory=SPARK_CONFIG["driver_memory"]
@@ -38,10 +37,9 @@ def run_pipeline():
     
     # --- Fase 1: Ingestione e Pulizia ---
     print("\nFase 1: Caricamento, Pulizia e Preparazione Dati...")
-    raw_df = spark.read.csv(raw_data_path, header=True, inferSchema=True)
+    raw_df = spark.read.csv(raw_data_path, header=True, inferSchema=False)
     df_std_names = standardize_column_names(raw_df)
     df_typed = correct_data_types(df_std_names)
-    # MODIFICA: Uso della soglia di partite dalla configurazione
     df_cleaned = handle_missing_values(
         df_typed, 
         min_games_threshold=SPARK_CONFIG["min_games_threshold"]
@@ -56,22 +54,33 @@ def run_pipeline():
 
     # --- Fase 3: Clustering ---
     print("\nFase 3: Raggruppamento dei Giocatori (Clustering)...")
-    df_latest_season = df_full_features.groupBy("player").agg(max(col("season")).alias("latest_year"))
-    df_for_clustering_input = df_full_features.join(
-        df_latest_season,
-        (df_full_features.player == df_latest_season.player) & (df_full_features.season == df_latest_season.latest_year),
-        "inner"
-    ).select(df_full_features["*"])
+
+    window_spec = Window.partitionBy("player").orderBy(col("season").desc(), col("g").desc())
+
+    df_with_rank = df_full_features.withColumn("rank", row_number().over(window_spec))
+
+    df_for_clustering_input = df_with_rank.withColumn(
+        "priority",
+        when(col("tm") == "TOT", 1).otherwise(2)
+    )
+
+    final_window_spec = Window.partitionBy("player", "season").orderBy("priority", "g")
+    df_unique_latest_season = df_for_clustering_input.withColumn("final_rank", row_number().over(final_window_spec))
+
+    df_for_clustering_input = df_unique_latest_season.filter(col("rank") == 1).filter(col("final_rank") == 1)
 
     feature_cols = [
-        'pts_per_36_min', 'trb_per_36_min', 'ast_per_36_min', 
+        'pts_per_36_min', 'trb_per_36_min', 'ast_per_36_min',
         'stl_per_36_min', 'blk_per_36_min', 'tov_per_36_min',
         'ts_pct_calc'
     ]
-    df_for_clustering = df_for_clustering_input.select(["player"] + feature_cols).na.drop()
-    
+
+    df_for_clustering = df_for_clustering_input.select(["player", "season"] + feature_cols).na.drop()
+
     df_prepared = prepare_features_for_clustering(df_for_clustering, feature_cols)
-    optimal_k = determine_optimal_k(df_prepared)
+    # Usiamo il valore k=6 validato nell'analisi esplorativa per ottenere cluster più significativi
+    optimal_k = 6
+    print(f"Valore di k impostato manualmente a {optimal_k} sulla base dell'analisi esplorativa per una migliore interpretabilità.")
     kmeans_model = train_kmeans_model(df_prepared, k=optimal_k)
     df_clustered = assign_clusters(kmeans_model, df_prepared)
 
