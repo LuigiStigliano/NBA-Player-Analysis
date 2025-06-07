@@ -3,7 +3,7 @@ pyspark==4.0.0
 pandas==2.3.0
 numpy==2.2.6
 
-# Visualizzazione (per i notebook)
+# Visualizzazione per i Notebooks
 matplotlib==3.10.3
 seaborn==0.13.2
 
