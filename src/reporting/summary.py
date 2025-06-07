@@ -21,22 +21,22 @@ def generate_cluster_summary(df_clustered: DataFrame, df_full_stats: DataFrame, 
     print("="*50)
     
     cluster_profiles = {
-        0: "All-Around Stars / Creatori Primari",
-        1: "Specialisti Difensivi e Rimbalzisti",
-        2: "Playmaker Puri / Organizzatori di Gioco",
-        3: "Giocatori di Ruolo a Basso Utilizzo",
-        4: "Giocatori di Ruolo a Controllo Rischio",
-        5: "Finalizzatori Interni ed Efficienti"
+        1: "All-Around Stars / Creatori Primari",
+        2: "Specialisti Difensivi e Rimbalzisti",
+        3: "Playmaker Puri / Organizzatori di Gioco",
+        4: "Giocatori di Ruolo a Basso Utilizzo",
+        5: "Giocatori di Ruolo a Controllo Rischio",
+        6: "Finalizzatori Interni ed Efficienti"
     }
     
     # Logica di ordinamento definitiva e specifica per ogni cluster
     sort_logic = {
-        0: {"column": "pts_per_36_min", "ascending": False},  # All-Around Stars per punti (DESC)
-        1: {"column": "trb_per_36_min", "ascending": False},  # Specialisti Difensivi per rimbalzi (DESC)
-        2: {"column": "ast_per_36_min", "ascending": False},  # Playmaker per assist (DESC)
-        3: {"column": "mp_per_game", "ascending": True},      # Basso Utilizzo per minuti (ASC - meno minuti)
-        4: {"column": "tov_per_36_min", "ascending": True},   # Controllo Rischio per pochi turnover (ASC)
-        5: {"column": "ts_pct_calc", "ascending": False}      # Finalizzatori per efficienza (DESC)
+        1: {"column": "pts_per_36_min", "ascending": False},  # All-Around Stars per punti (DESC)
+        2: {"column": "trb_per_36_min", "ascending": False},  # Specialisti Difensivi per rimbalzi (DESC)
+        3: {"column": "ast_per_36_min", "ascending": False},  # Playmaker per assist (DESC)
+        4: {"column": "mp_per_game", "ascending": True},      # Basso Utilizzo per minuti (ASC - meno minuti)
+        5: {"column": "tov_per_36_min", "ascending": True},   # Controllo Rischio per pochi turnover (ASC)
+        6: {"column": "ts_pct_calc", "ascending": False}      # Finalizzatori per efficienza (DESC)
     }
 
     os.makedirs(output_dir, exist_ok=True)
@@ -53,7 +53,7 @@ def generate_cluster_summary(df_clustered: DataFrame, df_full_stats: DataFrame, 
         f.write("ANALISI CLUSTER NBA - PROFILI GIOCATORI (ORDINAMENTO DEFINITIVO)\n")
         f.write("="*50 + "\n")
 
-        for i in range(k):
+        for i in range(1, k + 1):
             profile = cluster_profiles.get(i, f"Profilo Sconosciuto {i}")
             
             # Applica l'ordinamento corretto
