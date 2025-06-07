@@ -36,7 +36,7 @@ def prepare_features_for_clustering(df: DataFrame, feature_cols: list, output_co
     print(f"Preparazione features per clustering dalle colonne: {feature_cols}")
 
     # Assembla le feature in un unico vettore denso
-    assembler = VectorAssembler(inputCols=feature_cols, outputCol="features_raw", handleInvalid="skip")
+    assembler = VectorAssembler(inputCols=feature_cols, outputCol="features_raw")
     df_assembled = assembler.transform(df)
     
     # Scala le feature per normalizzarle
