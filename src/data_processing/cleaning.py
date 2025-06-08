@@ -1,23 +1,26 @@
 """
-Funzioni per la pulizia e la preparazione dei dati grezzi dei giocatori NBA.
+Qui ho messo le funzioni che uso per pulire e preparare i dati grezzi.
+La pulizia è una fase fondamentale per assicurarsi che l'analisi sia affidabile.
 """
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import col, when
 
 def standardize_column_names(df: DataFrame) -> DataFrame:
     """
-    Standardizza i nomi delle colonne del DataFrame.
+    Ho creato questa funzione per standardizzare i nomi delle colonne.
+    Li trasformo tutti in minuscolo e sostituisco caratteri come '%' con '_pct'.
+    Così è più facile lavorarci dopo.
     """
-    print("Standardizzazione dei nomi delle colonne...")
+    print("Standardizzo i nomi delle colonne")
     new_columns = [c.lower().replace("%", "_pct") for c in df.columns]
     return df.toDF(*new_columns)
 
 def correct_data_types(df: DataFrame) -> DataFrame:
     """
-    Converte le colonne numeriche al tipo di dato corretto (Double) usando un cast sicuro.
-    I valori non numerici (incluso 'NA') vengono convertiti in 0.0.
+    I dati vengono caricati come stringhe, quindi qui li converto nei tipi corretti.
+    Uso un cast sicuro: se un valore non è un numero (ad esempio 'NA'), lo imposto a 0.0.
     """
-    print("Correzione dei tipi di dato per le colonne numeriche...")
+    print("Correggo i tipi di dato per le colonne numeriche")
     numeric_cols = [
         'g', 'gs', 'mp', 'per', 'ts_pct', '3par', 'ftr', 'orb_pct', 'drb_pct', 'trb_pct',
         'ast_pct', 'stl_pct', 'blk_pct', 'tov_pct', 'usg_pct', 'ows', 'dws', 'ws', 'ws/48',
@@ -29,28 +32,29 @@ def correct_data_types(df: DataFrame) -> DataFrame:
     df_casted = df
     for col_name in numeric_cols:
         if col_name in df_casted.columns:
-            # Cast sicuro: se il valore è 'NA' o non può essere convertito in double, imposta a 0.0
-            # Altrimenti, esegui il cast a double.
+            # Se il valore è 'NA' o non può essere convertito in double, lo imposto a 0.0.
             df_casted = df_casted.withColumn(
                 col_name,
                 when(col(col_name) == 'NA', 0.0)
                 .otherwise(col(col_name).cast("double"))
-            ).na.fill(0.0, subset=[col_name]) # Aggiunto na.fill per gestire eventuali nulli post-cast
+            ).na.fill(0.0, subset=[col_name]) # Gestisco anche eventuali valori nulli che potrebbero rimanere.
 
     return df_casted
 
 def handle_missing_values(df: DataFrame, min_games_threshold: int) -> DataFrame:
     """
-    Gestisce i valori mancanti e filtra i record per coerenza.
+    In questa funzione, gestisco i valori mancanti e applico alcuni filtri
+    per rendere i dati più coerenti e significativi per l'analisi.
     """
-    print(f"Gestione dei valori mancanti e applicazione filtri (min partite giocate: {min_games_threshold})...")
+    print(f"Gestisco i valori mancanti e applico i filtri (min partite giocate: {min_games_threshold})")
     
-    # Filtra per record rilevanti e statisticamente significativi
+    # Filtro i dati per tenere solo le stagioni dall'era del tiro da 3 punti (dal 1980),
+    # i giocatori con minuti giocati > 0 e che hanno giocato un numero minimo di partite.
     df_filtered = df.filter(
         (col("season") >= 1980) &
         (col("mp").isNotNull()) & 
         (col("mp") > 0) &
-        (col("g") > min_games_threshold) # Usa la soglia parametrizzata
+        (col("g") > min_games_threshold)
     )
     
     return df_filtered

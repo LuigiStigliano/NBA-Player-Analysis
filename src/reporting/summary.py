@@ -1,5 +1,6 @@
 """
-Modulo per la generazione di output qualitativi e riassunti dell'analisi.
+In questo modulo, ho messo il codice per generare i riassunti testuali dei cluster.
+Volevo un output facile da leggere che descrivesse ogni profilo.
 """
 import os
 from pyspark.sql import DataFrame
@@ -7,49 +8,47 @@ from pyspark.sql.functions import col, format_number
 
 def generate_cluster_summary(df_final_analysis: DataFrame, k: int, output_dir: str):
     """
-    Genera un riassunto qualitativo dei cluster con ordinamento specifico per profilo,
-    mostrando caratteristiche e giocatori rappresentativi. Salva il riassunto in un file .txt.
-
-    Args:
-        df_clustered (DataFrame): DataFrame con i cluster assegnati.
-        df_full_stats (DataFrame): DataFrame con tutte le statistiche, incluse quelle "per partita".
-        k (int): Il numero di cluster generati.
-        output_dir (str): La cartella dove salvare il file di riassunto.
+    Questa funzione genera un riassunto testuale per ogni cluster.
+    Per ogni gruppo, ho definito un profilo e una logica di ordinamento specifica
+    per mostrare i giocatori più rappresentativi.
+    Salvo tutto in un file .txt.
     """
     print("\n" + "="*50)
-    print("ANALISI QUALITATIVA DEI CLUSTER (CON ORDINAMENTO SPECIFICO)")
+    print("ANALISI QUALITATIVA DEI CLUSTER")
     print("="*50)
     
+    # Ho definito qui i nomi dei profili per ogni cluster.
     cluster_profiles = {
-        1: "All-Around Stars / Creatori Primari",
-        2: "Specialisti Difensivi e Rimbalzisti",
-        3: "Playmaker Puri / Organizzatori di Gioco",
-        4: "Giocatori di Ruolo a Basso Utilizzo",
-        5: "Giocatori di Ruolo a Controllo Rischio",
-        6: "Finalizzatori Interni ed Efficienti"
+        1: "Ali Forti Moderne / Marcatori-Rimbalzisti",
+        2: "Playmaker Puri / Organizzatori di Gioco",
+        3: "Giocatori di Ruolo a Basso Utilizzo",
+        4: "All-Around Stars / Motori Offensivi",
+        5: "Giocatori Affidabili a Controllo Rischio",
+        6: "Ancore Difensive / Specialisti del Canestro"
     }
     
-    # Logica di ordinamento definitiva e specifica per ogni cluster
+    # Per ogni cluster, ho deciso qual è la statistica più importante
+    # per far emergere i giocatori più rappresentativi.
     sort_logic = {
-        1: {"column": "pts_per_36_min", "ascending": False},  # All-Around Stars per punti (DESC)
-        2: {"column": "trb_per_36_min", "ascending": False},  # Specialisti Difensivi per rimbalzi (DESC)
-        3: {"column": "ast_per_36_min", "ascending": False},  # Playmaker per assist (DESC)
-        4: {"column": "mp_per_game", "ascending": True},      # Basso Utilizzo per minuti (ASC - meno minuti)
-        5: {"column": "tov_per_36_min", "ascending": True},   # Controllo Rischio per pochi turnover (ASC)
-        6: {"column": "ts_pct_calc", "ascending": False}      # Finalizzatori per efficienza (DESC)
+        1: {"column": "pts_per_36_min", "ascending": False},  # I marcatori li ordino per punti.
+        2: {"column": "ast_per_36_min", "ascending": False},  # I playmaker per assist.
+        3: {"column": "mp_per_game", "ascending": True},      # I giocatori a basso utilizzo per minuti giocati (dal più basso).
+        4: {"column": "pts_per_36_min", "ascending": False},  # Le superstar per punti.
+        5: {"column": "tov_per_36_min", "ascending": True},   # I giocatori affidabili per palle perse (dal più basso).
+        6: {"column": "blk_per_36_min", "ascending": False}   # Le ancore difensive per stoppate.
     }
 
     os.makedirs(output_dir, exist_ok=True)
     summary_file_path = os.path.join(output_dir, "cluster_summary.txt")
 
     with open(summary_file_path, "w", encoding='utf-8') as f:
-        f.write("ANALISI CLUSTER NBA - PROFILI GIOCATORI (ORDINAMENTO DEFINITIVO)\n")
+        f.write("ANALISI CLUSTER NBA - PROFILI GIOCATORI\n")
         f.write("="*50 + "\n")
 
         for i in range(1, k + 1):
             profile = cluster_profiles.get(i, f"Profilo Sconosciuto {i}")
             
-            # Applica l'ordinamento corretto
+            # Applico la logica di ordinamento che ho definito sopra.
             sort_info = sort_logic.get(i, {"column": "pts_per_36_min", "ascending": False})
             order_col = sort_info["column"]
             is_ascending = sort_info["ascending"]
@@ -60,7 +59,7 @@ def generate_cluster_summary(df_final_analysis: DataFrame, k: int, output_dir: s
             
             top_players = top_players_df.collect()
 
-            # Costruisce la stringa di output per il terminale e per il file
+            # Costruisco la stringa di output per il terminale e per il file.
             summary_str = f"\n--- CLUSTER {i}: {profile} (Ordinato per: {order_col} {'ASC' if is_ascending else 'DESC'}) ---\n"
             summary_str += "    Giocatori Rappresentativi:\n"
 
@@ -79,4 +78,4 @@ def generate_cluster_summary(df_final_analysis: DataFrame, k: int, output_dir: s
             print(summary_str)
             f.write(summary_str)
 
-    print(f"\nRiassunto qualitativo aggiornato salvato con successo in '{summary_file_path}'")
+    print(f"\nRiassunto qualitativo salvato con successo in '{summary_file_path}'")

@@ -1,38 +1,24 @@
 """
-Modulo per il download del dataset NBA da Kaggle.
-
-Questo script contiene la logica per autenticarsi all'API di Kaggle e
-scaricare il dataset necessario per l'analisi, decomprimendolo nella
-directory specificata.
+Ho creato questo modulo per gestire il download del dataset da Kaggle.
+In questo modo, lo script è autonomo e non richiede di scaricare i dati manualmente.
 """
 import os
 from kaggle.api.kaggle_api_extended import KaggleApi
 
 def download_nba_dataset(save_path: str):
     """
-    Scarica e decomprime il dataset "nba-aba-baa-stats" da Kaggle.
-
-    Utilizza l'API di Kaggle per scaricare i file del dataset e li estrae
-    nel percorso di destinazione. La funzione crea la cartella di destinazione
-    se questa non esiste.
-
-    Args:
-        save_path (str): Il percorso della cartella dove salvare e decomprimere
-                         i file del dataset.
-
-    Raises:
-        Exception: Solleva un'eccezione se si verifica un errore durante
-                   l'autenticazione all'API di Kaggle o il download.
+    Questa funzione scarica e decomprime il dataset da Kaggle.
+    Usa l'API di Kaggle, quindi ho bisogno che il file 'kaggle.json' sia configurato.
     """
-    print(f"Tentativo di download del dataset NBA in '{save_path}'...")
+    print(f"Provo a scaricare il dataset NBA in '{save_path}'")
     os.makedirs(save_path, exist_ok=True)
 
     try:
-        # Inizializza l'API di Kaggle e si autentica
+        # Inizializzo l'API di Kaggle e mi autentico.
         api = KaggleApi()
         api.authenticate()
         
-        # Scarica e decomprime i file
+        # Scarico e decomprimo i file.
         api.dataset_download_files(
             "sumitrodatta/nba-aba-baa-stats",
             path=save_path,
@@ -40,18 +26,18 @@ def download_nba_dataset(save_path: str):
         )
         print("Download e decompressione completati con successo.")
     except Exception as e:
-        print(f"Errore critico durante il download da Kaggle: {e}")
-        print("Assicurarsi che il file 'kaggle.json' sia configurato correttamente.")
+        print(f"Errore durante il download da Kaggle: {e}")
+        print("Assicurati che il file 'kaggle.json' sia configurato correttamente.")
         raise e
 
 if __name__ == "__main__":
-    # Esempio di esecuzione per testare il download
+    # Ho aggiunto questo blocco per poter testare il download eseguendo direttamente questo script.
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     raw_data_dir = os.path.join(base_dir, "data", "raw")
     
-    # Controlla se il file principale esiste per evitare download ripetuti
+    # Controllo se il file esiste già per non scaricarlo di nuovo inutilmente.
     if not os.path.exists(os.path.join(raw_data_dir, "Player Totals.csv")):
-         print("File del dataset non trovato. Avvio del download...")
+         print("File del dataset non trovato. Avvio del download")
          download_nba_dataset(raw_data_dir)
     else:
-        print("Il dataset sembra essere già presente in locale. Nessun download necessario.")
+        print("Il dataset sembra essere già presente. Salto il download.")

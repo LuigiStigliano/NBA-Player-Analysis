@@ -1,29 +1,30 @@
 # Analisi delle Prestazioni dei Giocatori NBA e Clustering per Stile di Gioco
 
-Questo progetto analizza le statistiche storiche dei giocatori NBA per identificare diversi profili di giocatori e comprendere come le loro statistiche definiscono il loro ruolo e stile di gioco. L'analisi utilizza PySpark per l'elaborazione di dati su larga scala e il machine learning per il clustering.
+In questo progetto, ho analizzato le statistiche storiche dei giocatori NBA per scoprire diversi profili di giocatori e capire come le loro statistiche definiscano il loro stile di gioco. Per farlo, ho utilizzato PySpark, che mi ha permesso di gestire una grande mole di dati e di applicare algoritmi di machine learning per il clustering.
 
 ## Dataset
 
-Il dataset utilizzato è "NBA ABA BAA Stats" disponibile su Kaggle: https://www.kaggle.com/datasets/sumitrodatta/nba-aba-baa-stats.
+Ho utilizzato il dataset "NBA ABA BAA Stats" che ho trovato su Kaggle: https://www.kaggle.com/datasets/sumitrodatta/nba-aba-baa-stats.
 
-**Nota bene:** Non è necessario scaricare manualmente il dataset. L'archivio verrà scaricato e decompresso automaticamente. Il file specifico utilizzato per l'analisi è **`Player Totals.csv`**. Sia lo script principale (`src/main.py`) sia il primo notebook (`01_data_ingestion_and_preparation.ipynb`) sono configurati per usare questo file, posizionato nella cartella `data/raw/`.
+**Nota:** Non devi scaricare il dataset manualmente. Ho configurato gli script per scaricarlo e decomprimerlo in automatico. Il file che uso per l'analisi è **`Player Totals.csv`**, che verrà posizionato nella cartella `data/raw/`.
 
 ## Setup
 
-### 1. Clonare il repository
+### 1. Clona il repository
 
 ```bash
 git clone https://github.com/LuigiStigliano/NBA-Player-Analysis.git
 cd NBA-Player-Analysis
 ```
 
-### 2. Configurare le credenziali API di Kaggle
+### 2. Configura le tue credenziali API di Kaggle
 
-Per permettere il download automatico del dataset, è necessario configurare le proprie credenziali API di Kaggle. Il metodo standard consiste nel posizionare il file `kaggle.json` (scaricabile dal proprio profilo Kaggle) nella cartella:
-- `~/.kaggle/` (su Linux/macOS) 
+Per scaricare i dati, hai bisogno di configurare le tue credenziali API di Kaggle. Il modo più semplice è mettere il file `kaggle.json` (che puoi scaricare dal tuo profilo Kaggle) in una di queste cartelle:
+
+- `~/.kaggle/` (su Linux/macOS)
 - `C:\Users\<Windows-username>\.kaggle\` (su Windows)
 
-### 3. Creare un ambiente virtuale
+### 3. Crea un ambiente virtuale
 
 ```bash
 # Su Windows
@@ -35,55 +36,63 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-### 4. Installare le dipendenze
+### 4. Installa le dipendenze
 
-Il file `requirements.txt` include tutte le librerie necessarie, compresa quella per l'interazione con Kaggle.
+Ho elencato tutte le librerie necessarie nel file `requirements.txt`.
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 5. Configurare Spark
+### 5. Requisiti di Spark e Hadoop
 
-Assicurarsi di avere Apache Spark installato e configurato correttamente nel proprio sistema. Le variabili d'ambiente come `SPARK_HOME` e `PYSPARK_PYTHON` dovrebbero essere impostate.
+Grazie all'inclusione di pyspark nel file `requirements.txt`, non è necessaria un'installazione separata di Apache Spark. La libreria gestirà autonomamente l'esecuzione in modalità locale.
+
+#### Opzionale ma Raccomandato per Utenti Windows
+
+Per evitare errori comuni su Windows legati a `winutils.exe`:
+
+1. Scaricare il file `winutils.exe` corrispondente alla versione di Hadoop utilizzata da PySpark dal repository [winutils](https://github.com/cdarlint/winutils) (io ho utilizzato la versione 3.3.6)
+2. Creare una cartella, ad esempio `C:\hadoop\bin`, e inserirvi il file `winutils.exe`
+3. Impostare la variabile d'ambiente `HADOOP_HOME` in modo che punti alla cartella `C:\hadoop`
 
 ## Esecuzione
 
-L'analisi può essere eseguita in due modi:
+Puoi eseguire l'analisi in due modi.
 
-### 1. Tramite Jupyter Notebooks (consigliato per l'esplorazione)
+### 1. Tramite Jupyter Notebooks
 
-Eseguire sequenzialmente i notebook nella cartella `notebooks/` per seguire ogni passo dell'analisi, dalla preparazione dei dati alla visualizzazione dei cluster:
+Per seguire passo dopo passo il mio processo di analisi, puoi eseguire i notebook che ho creato nella cartella `notebooks/`:
 
 1. `01_data_ingestion_and_preparation.ipynb`
 2. `02_exploratory_data_analysis.ipynb`
 3. `03_advanced_metrics_calculation.ipynb`
 4. `04_player_clustering.ipynb`
 5. `05_cluster_analysis_and_visualization.ipynb`
-6. `06_presentation_visuals.ipynb` (Opzionale, per generare i grafici per la presentazione)
+6. `06_presentation_visuals.ipynb` (Opzionale, l'ho creato e usato per generare i grafici per la presentazione)
 
-### 2. Tramite lo script principale (per una pipeline automatizzata)
+### 2. Tramite lo script principale
 
-Lo script `src/main.py` esegue l'intera pipeline di analisi in un'unica esecuzione.
+Se vuoi eseguire l'intera pipeline in una volta sola, puoi lanciare lo script `src/main.py`.
 
 ```bash
 python src/main.py
 ```
 
-## Obiettivi
+## I miei obiettivi
 
-- **Pulire e preparare** i dati storici dei giocatori NBA, **filtrando per le stagioni dall'era del tiro da 3 punti (dal 1980 in poi)** per un'analisi più moderna e coerente
-- **Condurre un'analisi esplorativa** per identificare trend e leader statistici
-- **Calcolare metriche avanzate** (es. True Shooting Percentage, PER semplificato)
-- **Normalizzare le statistiche** (es. per 36 minuti) per un confronto equo
-- **Applicare l'algoritmo di clustering K-Means** per raggruppare i giocatori in base allo stile di gioco
-- **Analizzare e visualizzare** le caratteristiche distintive di ciascun cluster per definire i profili dei giocatori
+- **Pulire e preparare** i dati storici, **filtrando le stagioni dal 1980 in poi** (l'era del tiro da 3 punti) per avere un'analisi più moderna
+- **Fare un'analisi esplorativa** per trovare trend e leader statistici
+- **Calcolare metriche avanzate** come il True Shooting Percentage
+- **Normalizzare le statistiche** per 36 minuti, per poter confrontare i giocatori in modo equo
+- **Usare l'algoritmo K-Means** per raggruppare i giocatori in base allo stile di gioco
+- **Analizzare e visualizzare** le caratteristiche di ogni gruppo per definire i profili dei giocatori
 
-## Risultati Attesi
+## Risultati che ho ottenuto
 
-Al termine dell'analisi, il progetto fornirà:
+Alla fine dell'analisi, ho prodotto:
 
-- **Cluster di giocatori** raggruppati per stile di gioco
-- **Profile dettagliati** per ogni tipologia di giocatore
-- **Visualizzazioni** delle caratteristiche distintive
-- **Metriche avanzate** per la valutazione delle performance
+- **Cluster di giocatori** che rappresentano diversi stili di gioco
+- **Profili dettagliati** per ogni tipo di giocatore
+- **Visualizzazioni** che mostrano le loro caratteristiche principali
+- **Metriche avanzate** per valutare le loro performance
