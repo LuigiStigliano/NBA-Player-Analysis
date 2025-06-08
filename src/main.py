@@ -89,7 +89,14 @@ def run_pipeline():
 
     # --- Fase 4: Valutazione e Analisi ---
     print("\nFase 4: Valutazione e Analisi dei Risultati...")
-    generate_cluster_summary(df_clustered, df_for_clustering_input, optimal_k, reports_dir)
+
+    df_final_analysis = df_for_clustering_input.join(
+        df_clustered.select("player", "season", "cluster_id"),
+        ["player", "season"],
+        "inner"
+    )
+
+    generate_cluster_summary(df_final_analysis, optimal_k, reports_dir)
 
     # --- Fase 5: Salvataggio Risultati ---
     print(f"\nFase 5: Salvataggio dei risultati numerici...")
