@@ -5,7 +5,7 @@ import os
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import col, format_number
 
-def generate_cluster_summary(df_clustered: DataFrame, df_full_stats: DataFrame, k: int, output_dir: str):
+def generate_cluster_summary(df_final_analysis: DataFrame, k: int, output_dir: str):
     """
     Genera un riassunto qualitativo dei cluster con ordinamento specifico per profilo,
     mostrando caratteristiche e giocatori rappresentativi. Salva il riassunto in un file .txt.
@@ -42,13 +42,6 @@ def generate_cluster_summary(df_clustered: DataFrame, df_full_stats: DataFrame, 
     os.makedirs(output_dir, exist_ok=True)
     summary_file_path = os.path.join(output_dir, "cluster_summary.txt")
 
-    # Unisce i risultati del clustering con il DataFrame che contiene TUTTE le statistiche
-    df_with_stats = df_full_stats.join(
-        df_clustered.select("player", "cluster_id"),
-        "player",
-        "inner"
-    )
-
     with open(summary_file_path, "w", encoding='utf-8') as f:
         f.write("ANALISI CLUSTER NBA - PROFILI GIOCATORI (ORDINAMENTO DEFINITIVO)\n")
         f.write("="*50 + "\n")
@@ -61,9 +54,9 @@ def generate_cluster_summary(df_clustered: DataFrame, df_full_stats: DataFrame, 
             order_col = sort_info["column"]
             is_ascending = sort_info["ascending"]
 
-            top_players_df = df_with_stats.filter(col('cluster_id') == i) \
-                                          .orderBy(col(order_col).asc() if is_ascending else col(order_col).desc()) \
-                                          .limit(5)
+            top_players_df = df_final_analysis.filter(col('cluster_id') == i) \
+                                              .orderBy(col(order_col).asc() if is_ascending else col(order_col).desc()) \
+                                              .limit(5)
             
             top_players = top_players_df.collect()
 
