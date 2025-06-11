@@ -1,6 +1,7 @@
 """
-Qui ho messo le funzioni che uso per pulire e preparare i dati grezzi.
-La pulizia è una fase fondamentale per assicurarsi che l'analisi sia affidabile.
+Qui ho raggruppato le funzioni che utilizzo per pulire e preparare i dati grezzi.
+Considero la pulizia una fase fondamentale per assicurarmi che la mia 
+analisi sia affidabile.
 """
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import col, when
@@ -8,8 +9,8 @@ from pyspark.sql.functions import col, when
 def standardize_column_names(df: DataFrame) -> DataFrame:
     """
     Ho creato questa funzione per standardizzare i nomi delle colonne.
-    Li trasformo tutti in minuscolo e sostituisco caratteri come '%' con '_pct'.
-    Così è più facile lavorarci dopo.
+    Li trasformo tutti in minuscolo e sostituisco caratteri speciali, 
+    come '%' con '_pct'. In questo modo, mi risulta più facile lavorarci dopo.
     """
     print("Standardizzo i nomi delle colonne")
     new_columns = [c.lower().replace("%", "_pct") for c in df.columns]
@@ -17,8 +18,9 @@ def standardize_column_names(df: DataFrame) -> DataFrame:
 
 def correct_data_types(df: DataFrame) -> DataFrame:
     """
-    I dati vengono caricati come stringhe, quindi qui li converto nei tipi corretti.
-    Uso un cast sicuro: se un valore non è un numero (ad esempio 'NA'), lo imposto a 0.0.
+    Dato che i dati vengono caricati come stringhe, qui li converto nei tipi corretti.
+    Utilizzo un cast sicuro: se un valore non è un numero (ad esempio, contiene 'NA'), 
+    lo imposto a 0.0.
     """
     print("Correggo i tipi di dato per le colonne numeriche")
     numeric_cols = [
@@ -44,12 +46,12 @@ def correct_data_types(df: DataFrame) -> DataFrame:
 def handle_missing_values(df: DataFrame, min_games_threshold: int) -> DataFrame:
     """
     In questa funzione, gestisco i valori mancanti e applico alcuni filtri
-    per rendere i dati più coerenti e significativi per l'analisi.
+    per rendere i dati più coerenti e significativi per la mia analisi.
     """
     print(f"Gestisco i valori mancanti e applico i filtri (min partite giocate: {min_games_threshold})")
     
     # Filtro i dati per tenere solo le stagioni dall'era del tiro da 3 punti (dal 1980),
-    # i giocatori con minuti giocati > 0 e che hanno giocato un numero minimo di partite.
+    # i giocatori con minuti giocati > 0 e che hanno disputato un numero minimo di partite.
     df_filtered = df.filter(
         (col("season") >= 1980) &
         (col("mp").isNotNull()) & 

@@ -1,14 +1,14 @@
 """
-Ho creato questo modulo per gestire il download del dataset da Kaggle.
-In questo modo, lo script è autonomo e non richiede di scaricare i dati manualmente.
+Ho creato questo modulo per gestire il download del dataset direttamente da Kaggle.
+In questo modo, lo script è autonomo e non mi richiede di scaricare i dati manualmente.
 """
 import os
 from kaggle.api.kaggle_api_extended import KaggleApi
 
 def download_nba_dataset(save_path: str):
     """
-    Questa funzione scarica e decomprime il dataset da Kaggle.
-    Usa l'API di Kaggle, quindi ho bisogno che il file 'kaggle.json' sia configurato.
+    Questa funzione si occupa di scaricare e decomprimere il dataset da Kaggle.
+    Utilizza l'API di Kaggle, quindi ho bisogno che il mio file 'kaggle.json' sia configurato.
     """
     print(f"Provo a scaricare il dataset NBA in '{save_path}'")
     os.makedirs(save_path, exist_ok=True)
@@ -27,7 +27,7 @@ def download_nba_dataset(save_path: str):
         print("Download e decompressione completati con successo.")
     except Exception as e:
         print(f"Errore durante il download da Kaggle: {e}")
-        print("Assicurati che il file 'kaggle.json' sia configurato correttamente.")
+        print("Mi assicuro che il file 'kaggle.json' sia configurato correttamente.")
         raise e
 
 if __name__ == "__main__":

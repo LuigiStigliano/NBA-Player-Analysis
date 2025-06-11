@@ -1,6 +1,7 @@
 """
-In questo modulo, ho implementato la funzione per calcolare una metrica statistica più avanzata.
-Volevo andare oltre le statistiche di base per catturare meglio la performance di un giocatore.
+In questo modulo, ho implementato la funzione per calcolare una metrica statistica 
+più avanzata. Volevo andare oltre le statistiche di base per catturare 
+meglio la performance di un giocatore.
 """
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import col, when
@@ -10,10 +11,10 @@ def calculate_true_shooting_percentage(df: DataFrame,
                                        fga_col: str = "fga",
                                        fta_col: str = "fta") -> DataFrame:
     """
-    Ho calcolato il True Shooting Percentage (TS%) perché è una metrica di efficienza
-    al tiro molto più completa della semplice percentuale dal campo.
+    Ho scelto di calcolare il True Shooting Percentage (TS%) perché è una metrica di 
+    efficienza al tiro molto più completa della semplice percentuale dal campo.
     Tiene conto sia dei tiri da tre punti che dei tiri liberi.
-    La formula è: TS% = Punti / (2 * (Tiri dal Campo Tentati + 0.44 * Tiri Liberi Tentati)).
+    La formula che uso è: TS% = Punti / (2 * (Tiri dal Campo Tentati + 0.44 * Tiri Liberi Tentati)).
     """
     print("Calcolo il True Shooting Percentage (TS%)")
     

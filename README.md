@@ -6,7 +6,7 @@ In questo progetto, ho analizzato le statistiche storiche dei giocatori NBA per 
 
 Ho utilizzato il dataset "NBA ABA BAA Stats" che ho trovato su Kaggle: https://www.kaggle.com/datasets/sumitrodatta/nba-aba-baa-stats.
 
-**Nota:** Non devi scaricare il dataset manualmente. Ho configurato gli script per scaricarlo e decomprimerlo in automatico. Il file che uso per l'analisi è **`Player Totals.csv`**, che verrà posizionato nella cartella `data/raw/`.
+**Nota:** Non devi scaricare il dataset manualmente. Ho configurato gli script per scaricarlo e decomprimerlo in automatico. Il file che uso per l'analisi è **`Player Totals.csv`**, che verrà posizionato nella cartella `data`.
 
 ## Setup
 
@@ -44,9 +44,43 @@ Ho elencato tutte le librerie necessarie nel file `requirements.txt`.
 pip install -r requirements.txt
 ```
 
-### 5. Requisiti di Spark e Hadoop
+### 5. Configurazione dell'Ambiente e del Database (per src/main.py)
 
-Grazie all'inclusione di pyspark nel file `requirements.txt`, non è necessaria un'installazione separata di Apache Spark. La libreria gestirà autonomamente l'esecuzione in modalità locale.
+Lo script principale `src/main.py` è progettato per caricare i dati e i risultati dell'analisi in un database PostgreSQL. Per eseguirlo correttamente, è necessaria una configurazione preliminare.
+
+#### Prerequisiti
+
+Assicurati di avere un'istanza di PostgreSQL in esecuzione e accessibile. Lo script non creerà il database, quindi è necessario che esista già.
+
+#### Creazione del file .env
+
+Lo script utilizza un file `.env` per gestire le credenziali del database in modo sicuro, senza esporle nel codice.
+
+Crea un file chiamato `.env` nella cartella principale del progetto (`NBA-Player-Analysis/.env`) e inserisci le tue credenziali, seguendo questo modello:
+
+```env
+# Credenziali per la connessione al database PostgreSQL
+# Queste variabili vengono lette da src/config/db_config.py
+DB_USER="il_tuo_username"
+DB_PASSWORD="la_tua_password"
+DB_HOST="localhost"
+DB_PORT="5432"
+DB_NAME="nba_db"
+```
+
+#### Creazione dello Schema e delle Tabelle
+
+Prima di eseguire lo script, è necessario creare lo schema e le tabelle nel tuo database. Puoi utilizzare lo script SQL fornito nel repository:
+
+`schema/nba_schema.sql`
+
+Esegui questo script nel tuo database `nba_db` per preparare la struttura che ospiterà i dati.
+
+Una volta completati questi passaggi, sei pronto per lanciare la pipeline completa con `python src/main.py`.
+
+### 6. Requisiti di Spark e Hadoop
+
+Grazie all'inclusione di `pyspark` nel file `requirements.txt`, non è necessaria un'installazione separata di Apache Spark. La libreria gestirà autonomamente l'esecuzione in modalità locale.
 
 #### Opzionale ma Raccomandato per Utenti Windows
 
@@ -79,6 +113,13 @@ Se vuoi eseguire l'intera pipeline in una volta sola, puoi lanciare lo script `s
 python src/main.py
 ```
 
+**Nota sull'Archiviazione dei Dati:**
+
+Ho scelto due approcci diversi per la gestione dei dati, a seconda dello scopo:
+
+- I Jupyter Notebooks utilizzano file Parquet (`.parquet`) per salvare i dati processati tra uno step e l'altro. Questo approche è ideale per l'analisi esplorativa e interattiva, poiché è veloce e non richiede la configurazione di un database.
+- Lo script `main.py` è pensato come una pipeline automatizzata e carica tutti i risultati (dati grezzi, metriche e cluster) in un database PostgreSQL. Questo rende i dati finali persistenti, strutturati e accessibili per future analisi o applicazioni.
+
 ## I miei obiettivi
 
 - **Pulire e preparare** i dati storici, **filtrando le stagioni dal 1980 in poi** (l'era del tiro da 3 punti) per avere un'analisi più moderna
@@ -96,3 +137,13 @@ Alla fine dell'analisi, ho prodotto:
 - **Profili dettagliati** per ogni tipo di giocatore
 - **Visualizzazioni** che mostrano le loro caratteristiche principali
 - **Metriche avanzate** per valutare le loro performance
+
+## Sviluppi Futuri
+
+Questo progetto pone le basi per analisi ancora più avanzate. Ecco alcune direzioni future che ho pianificato per espandere questa ricerca:
+
+1. **Analisi della Composizione delle Squadre Vincenti:** Espandere l'analisi dal singolo giocatore all'ecosistema di squadra, per identificare i "blueprint" dei roster che hanno avuto successo storicamente.
+
+2. **Creazione di un Motore di Raccomandazione:** Sviluppare un algoritmo in grado di suggerire mosse di mercato, identificando i profili di giocatori mancanti in un roster per raggiungere un archetipo vincente.
+
+3. **Sviluppo di un Sistema Predittivo:** Creare un modello avanzato per prevedere le performance di una squadra (es. numero di vittorie) basandosi sulla sua composizione di cluster, con applicazioni pratiche come simulatori di trade e ottimizzatori per la free agency.
