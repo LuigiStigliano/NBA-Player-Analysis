@@ -5,8 +5,8 @@ parti del progetto. In questo modo, evito di ripetere il codice.
 import os
 import pandas as pd
 from sqlalchemy import create_engine
-from pyspark.sql import SparkSession
-from config.db_config import DB_CONFIG
+from pyspark.sql import DataFrame, SparkSession
+from ..config.db_config import DB_CONFIG
 
 def get_spark_session(app_name: str, driver_memory: str, master: str = "local[*]") -> SparkSession:
     """
@@ -20,6 +20,13 @@ def get_spark_session(app_name: str, driver_memory: str, master: str = "local[*]
              .config("spark.driver.memory", driver_memory)
              .getOrCreate())
     return spark
+
+def save_dataframe(df: DataFrame, path: str):
+    """
+    Salva un DataFrame Spark in formato Parquet, sovrascrivendo se il file esiste già.
+    """
+    print(f"Salvo il DataFrame Spark in formato Parquet nel percorso: {path}")
+    df.write.mode("overwrite").parquet(path)
 
 def get_db_engine():
     """

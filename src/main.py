@@ -8,6 +8,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from pyspark.sql.functions import col, row_number, when
 from pyspark.sql.window import Window
+from sqlalchemy import text # Import necessario per eseguire SQL nativo
 from config.spark_config import SPARK_CONFIG
 from utils.helpers import get_spark_session, get_db_engine, save_pd_to_db
 from data_ingestion.download_data import download_nba_dataset
@@ -35,22 +36,25 @@ def run_pipeline():
     base_dir = os.path.dirname(os.path.dirname(__file__))
     data_dir = os.path.join(base_dir, "data")
     reports_dir = os.path.join(base_dir, "reports")
-    raw_data_path = os.path.join(data_dir, "Player Totals.csv")
+    raw_data_folder = os.path.join(data_dir, "raw")
+    raw_data_path = os.path.join(raw_data_folder, "Player Totals.csv")
     db_schema = "nba_analytics"
 
     # --- Fase 0: Eseguo il Download del Dataset ---
     if not os.path.exists(raw_data_path):
-        download_nba_dataset(data_dir)
+        download_nba_dataset(raw_data_folder)
     
     # --- Fase 1: Ingestione, Pulizia e Caricamento dei Dati Grezzi ---
     print("\nFase 1: Carico, pulisco e preparo i dati grezzi")
     raw_df = spark.read.csv(raw_data_path, header=True, inferSchema=False)
     df_std_names = standardize_column_names(raw_df)
     
-    # Salvo i dati grezzi con i nomi delle colonne standardizzati.
     print(f"\n--- Caricamento Dati in '{db_schema}.raw_player_stats' ---")
-    # Li converto in Pandas per utilizzare il caricatore ottimizzato.
     raw_pd = df_std_names.toPandas()
+    # Svuoto la tabella prima del caricamento per rieseguire lo script da zero
+    with engine.connect() as connection:
+        connection.execute(text(f"TRUNCATE TABLE {db_schema}.raw_player_stats RESTART IDENTITY CASCADE"))
+        connection.commit()
     save_pd_to_db(raw_pd, "raw_player_stats", db_schema, engine)
     
     # --- Fase 2: Elaborazione dei Dati e Caricamento delle Metriche ---
@@ -63,23 +67,20 @@ def run_pipeline():
     df_advanced = calculate_true_shooting_percentage(df_normalized, points_col="pts", fga_col="fga", fta_col="fta")
     df_full_features = add_per_game_metrics(df_advanced)
 
-    # Preparo il DataFrame per il caricamento in 'processed_metrics'.
-    # Per prima cosa, ottengo gli ID dalla tabella 'raw_player_stats'.
-    raw_stats_ids = pd.read_sql("SELECT id, player, season FROM nba_analytics.raw_player_stats", engine)
+    raw_stats_ids = pd.read_sql(f"SELECT id, player, season, tm FROM {db_schema}.raw_player_stats", engine)
     
     metrics_to_load_pd = df_full_features.select(
-        "player", "season", "pts_per_36_min", "ast_per_36_min", "trb_per_36_min",
+        "player", "season", "tm", "pts_per_36_min", "ast_per_36_min", "trb_per_36_min",
         "tov_per_36_min", "stl_per_36_min", "blk_per_36_min", "mp_per_game",
         "pts_per_game", "ts_pct_calc"
     ).toPandas()
 
-    # Eseguo una join per ottenere i player_id.
-    metrics_with_ids = pd.merge(metrics_to_load_pd, raw_stats_ids, on=["player", "season"])
+    metrics_with_ids = pd.merge(metrics_to_load_pd, raw_stats_ids, on=["player", "season", "tm"])
     metrics_with_ids = metrics_with_ids.rename(columns={"id": "player_id"})
 
     print(f"\n--- Caricamento Dati in '{db_schema}.processed_metrics' ---")
     save_pd_to_db(
-        metrics_with_ids.drop(columns=['player', 'season']),
+        metrics_with_ids.drop(columns=['player', 'season', 'tm']),
         "processed_metrics",
         db_schema,
         engine
@@ -87,31 +88,30 @@ def run_pipeline():
 
     # --- Fase 3: Clustering e Caricamento dei Risultati ---
     print("\nFase 3: Eseguo il clustering dei giocatori")
-    window_spec = Window.partitionBy("player").orderBy(col("season").desc(), col("g").desc())
-    df_with_rank = df_full_features.withColumn("rank", row_number().over(window_spec))
-    df_for_clustering_input = df_with_rank.filter(col("rank") == 1)
+    window_spec_tot = Window.partitionBy("player", "season").orderBy(when(col("tm") == "TOT", 1).otherwise(2))
+    df_unique_season = df_full_features.withColumn("row", row_number().over(window_spec_tot)).filter(col("row") == 1)
+    
+    window_spec_latest = Window.partitionBy("player").orderBy(col("season").desc())
+    df_latest_season = df_unique_season.withColumn("rank", row_number().over(window_spec_latest)).filter(col("rank") == 1)
 
     feature_cols = [
         'pts_per_36_min', 'trb_per_36_min', 'ast_per_36_min',
         'stl_per_36_min', 'blk_per_36_min', 'tov_per_36_min',
         'ts_pct_calc'
     ]
-    df_for_clustering = df_for_clustering_input.select(["player", "season"] + feature_cols).na.drop()
+    df_for_clustering = df_latest_season.select(["player", "season", "tm"] + feature_cols).na.drop()
 
     df_prepared = prepare_features_for_clustering(df_for_clustering, feature_cols)
     optimal_k = 6
     kmeans_model = train_kmeans_model(df_prepared, k=optimal_k)
     df_clustered = assign_clusters(kmeans_model, df_prepared)
 
-    # Aggiungo +1 al cluster_id per allinearlo con le definizioni nel DB (che partono da 1).
     df_clustered = df_clustered.withColumn("cluster_id", col("cluster_id") + 1)
 
-    # Preparo il DataFrame per il caricamento in 'player_clusters'.
-    clusters_pd = df_clustered.select("player", "season", "cluster_id").toPandas()
-    clusters_with_ids = pd.merge(clusters_pd, raw_stats_ids, on=["player", "season"])
+    clusters_pd = df_clustered.select("player", "season", "tm", "cluster_id").toPandas()
+    clusters_with_ids = pd.merge(clusters_pd, raw_stats_ids, on=["player", "season", "tm"])
     clusters_with_ids = clusters_with_ids.rename(columns={"id": "player_id"})
     
-    # Calcolo (opzionalmente) la distanza dal centroide, se necessario.
     clusters_with_ids['distance_to_centroid'] = None 
 
     print(f"\n--- Caricamento Dati in '{db_schema}.player_clusters' ---")
@@ -135,7 +135,16 @@ def run_pipeline():
     definitions_pd = pd.DataFrame([
         {"id": k, "label": v[0], "description": v[1]} for k, v in cluster_profiles_map.items()
     ])
+    
+    # Svuoto la tabella prima di inserire i nuovi dati per risolvere l'errore di dipendenza.
+    # RESTART IDENTITY resetta l'autoincremento, CASCADE propaga l'operazione agli oggetti dipendenti.
+    with engine.connect() as connection:
+        connection.execute(text(f"TRUNCATE TABLE {db_schema}.cluster_definitions RESTART IDENTITY CASCADE"))
+        connection.commit()
+
+    # Salvo le nuove definizioni usando 'append' su una tabella ora vuota.
     save_pd_to_db(definitions_pd, "cluster_definitions", db_schema, engine)
+
 
     # --- Fase 5: Generazione del Report Finale dal Database ---
     print("\nFase 5: Genero il report finale leggendo i dati dal database")
